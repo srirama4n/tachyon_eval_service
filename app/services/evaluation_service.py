@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict
 from datetime import datetime, UTC
 import uuid
+import asyncio
 from app.db.mongodb import MongoDB
 from app.schemas.evaluation import Evaluation, EvaluationCreate, EvaluationUpdate
 from app.core.exceptions import (
@@ -55,6 +56,61 @@ class EvaluationService:
             raise DatabaseError(f"Failed to get evaluation: {str(e)}")
 
     @staticmethod
+    async def _update_evaluation_status_background(usecase_id: str, evaluation_dict: dict):
+        try:
+            # Add a small delay to ensure the evaluation is created
+            await asyncio.sleep(1)
+            
+            # Verify the evaluation still exists before updating
+            evaluation = await MongoDB.db.evaluations.find_one({
+                "id": evaluation_dict["id"],
+                "usecase_id": usecase_id
+            })
+            
+            if not evaluation:
+                logger.error(f"Evaluation {evaluation_dict['id']} not found during background status update")
+                return
+                
+            try:
+                current_time = datetime.now(UTC)
+                update_data = {
+                    "status": "completed",
+                    "updated_at": current_time,
+                    "completed_at": current_time
+                }
+                
+                await MongoDB.db.evaluations.update_one(
+                    {"id": evaluation_dict["id"], "usecase_id": usecase_id},
+                    {"$set": update_data}
+                )
+                logger.info(f"Successfully updated evaluation {evaluation_dict['id']} status to completed")
+            except EvaluationValidationError as ve:
+                logger.error(f"Validation error updating evaluation {evaluation_dict['id']} status: {str(ve)}")
+            except DatabaseError as de:
+                logger.error(f"Database error updating evaluation {evaluation_dict['id']} status: {str(de)}")
+            except Exception as e:
+                logger.error(f"Unexpected error updating evaluation {evaluation_dict['id']} status: {str(e)}")
+                
+        except Exception as e:
+            logger.error(f"Critical error in background status update for evaluation {evaluation_dict['id']}: {str(e)}")
+            # Attempt to mark the evaluation as failed if something goes wrong
+            try:
+                current_time = datetime.now(UTC)
+                update_data = {
+                    "status": "failed",
+                    "updated_at": current_time,
+                    "failed_at": current_time
+                }
+                
+                await MongoDB.db.evaluations.update_one(
+                    {"id": evaluation_dict["id"], "usecase_id": usecase_id},
+                    {"$set": update_data}
+                )
+                logger.info(f"Marked evaluation {evaluation_dict['id']} as failed due to background task error")
+            except Exception as update_error:
+                logger.error(f"Failed to mark evaluation {evaluation_dict['id']} as failed: {str(update_error)}")
+
+    @staticmethod
     @with_retry(
         max_retries=3,
         initial_delay=1.0,
@@ -87,6 +143,15 @@ class EvaluationService:
             
             # Get created evaluation
             created_evaluation = await MongoDB.db.evaluations.find_one({"_id": result.inserted_id})
+            
+            # Start background task to update status
+            asyncio.create_task(
+                EvaluationService._update_evaluation_status_background(
+                    usecase_id,
+                    evaluation_dict
+                )
+            )
+            
             return Evaluation(**created_evaluation)
         except DatasetNotFoundError:
             raise
@@ -200,16 +265,17 @@ class EvaluationService:
             if not evaluation:
                 raise EvaluationNotFoundError(evaluation_id)
 
-            # Update status
+            # Update status with timestamps
+            current_time = datetime.now(UTC)
             update_data = {
                 "status": status,
-                "updated_at": datetime.now(UTC)
+                "updated_at": current_time
             }
             
             if status == "completed":
-                update_data["completed_at"] = datetime.now(UTC)
+                update_data["completed_at"] = current_time
             elif status == "failed":
-                update_data["failed_at"] = datetime.now(UTC)
+                update_data["failed_at"] = current_time
 
             await MongoDB.db.evaluations.update_one(
                 {"id": evaluation_id, "usecase_id": usecase_id},
