@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional, Dict
 from app.schemas.evaluation import Evaluation, EvaluationCreate, EvaluationUpdate
+from app.schemas.evaluation_response import EvaluationResponse
 from app.services.evaluation_service import EvaluationService
 from app.core.exceptions import (
     EvaluationValidationError, EvaluationNotFoundError,
@@ -121,3 +122,17 @@ async def update_evaluation_status(
     except Exception as e:
         logger.error(f"Unexpected error in update_evaluation_status: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error") 
+    
+@router.get("/usecases/{usecase_id}/evaluations/{evaluation_id}/responses", response_model=List[EvaluationResponse])
+async def get_evaluation_responses(evaluation_id: str):
+    try:
+        return await EvaluationService.get_evaluation_responses(evaluation_id)
+    except EvaluationNotFoundError as e:
+        logger.error(f"Evaluation not found in get_evaluation_responses: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except DatabaseError as e:
+        logger.error(f"Database error in get_evaluation_responses: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in get_evaluation_responses: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

@@ -4,6 +4,7 @@ import uuid
 import asyncio
 from app.db.mongodb import MongoDB
 from app.schemas.evaluation import Evaluation, EvaluationCreate, EvaluationUpdate
+from app.schemas.evaluation_response import EvaluationResponse
 from app.core.exceptions import (
     EvaluationNotFoundError, EvaluationValidationError,
     DatasetNotFoundError, DatabaseError
@@ -292,4 +293,36 @@ class EvaluationService:
             raise
         except Exception as e:
             logger.error(f"Error updating evaluation status: {str(e)}")
-            raise DatabaseError(f"Failed to update evaluation status: {str(e)}") 
+            raise DatabaseError(f"Failed to update evaluation status: {str(e)}")
+
+    @staticmethod
+    @with_retry(
+        max_retries=3,
+        initial_delay=1.0,
+        max_delay=10.0,
+        exceptions=(ServerSelectionTimeoutError, OperationFailure)
+    )
+    async def get_evaluation_responses(evaluation_id: str) -> List[EvaluationResponse]:
+        try:
+            # First verify that the evaluation exists
+            evaluation = await MongoDB.db.evaluations.find_one({"id": evaluation_id})
+            if not evaluation:
+                raise EvaluationNotFoundError(evaluation_id)
+
+            # Get all responses for this evaluation
+            responses = await MongoDB.db.evaluation_responses.find(
+                {"evaluation_id": evaluation_id}
+            ).to_list(None)
+
+            if not responses:
+                logger.info(f"No responses found for evaluation {evaluation_id}")
+                return []
+
+            # Convert to EvaluationResponse objects
+            return [EvaluationResponse(**response) for response in responses]
+
+        except EvaluationNotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Error getting evaluation responses: {str(e)}")
+            raise DatabaseError(f"Failed to get evaluation responses: {str(e)}") 
