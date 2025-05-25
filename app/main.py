@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import datasets, evaluations, metrics, goldens
+from app.api import datasets, evaluations, metrics, goldens, usecases
 from app.core.config import settings
 from app.db.mongodb import MongoDB
 from app.core.exceptions import (
     DatasetError, DatasetNotFoundError, DatasetAlreadyExistsError,
     DatasetValidationError, EvaluationError, EvaluationNotFoundError,
     EvaluationValidationError, MetricsError, MetricsNotFoundError,
-    MetricsValidationError, DatabaseError
+    MetricsValidationError, DatabaseError, UsecaseNotFoundError
 )
 import logging
 import uvicorn
@@ -47,6 +47,7 @@ app.include_router(datasets.router, prefix="/api/v1", tags=["datasets"])
 app.include_router(goldens.router, prefix="/api/v1", tags=["goldens"])
 app.include_router(evaluations.router, prefix="/api/v1", tags=["evaluations"])
 app.include_router(metrics.router, prefix="/api/v1", tags=["metrics"])
+app.include_router(usecases.router, prefix="/api/v1", tags=["usecases"])
 
 # Exception handlers
 @app.exception_handler(DatasetError)
@@ -102,6 +103,11 @@ async def metrics_validation_handler(request: Request, exc: MetricsValidationErr
 @app.exception_handler(DatabaseError)
 async def database_error_handler(request: Request, exc: DatabaseError):
     logger.error(f"Database error: {str(exc)}")
+    return {"error": str(exc)}
+
+@app.exception_handler(UsecaseNotFoundError)
+async def usecase_not_found_handler(request: Request, exc: UsecaseNotFoundError):
+    logger.error(f"Usecase not found: {str(exc)}")
     return {"error": str(exc)}
 
 if __name__ == "__main__":

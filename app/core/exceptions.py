@@ -1,4 +1,5 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from typing import Any, Dict, Optional
 
 class DatasetError(HTTPException):
     def __init__(self, detail: str, status_code: int = 400):
@@ -54,4 +55,27 @@ class DatabaseError(HTTPException):
 
 class DatasetValidationError(Exception):
     """Exception raised for dataset validation errors."""
-    pass 
+    pass
+
+class UsecaseError(HTTPException):
+    def __init__(
+        self,
+        status_code: int,
+        detail: str,
+        headers: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(status_code=status_code, detail=detail, headers=headers)
+
+class UsecaseNotFoundError(UsecaseError):
+    def __init__(self, usecase_id: str):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usecase with id '{usecase_id}' not found"
+        )
+
+class UsecaseValidationError(UsecaseError):
+    def __init__(self, detail: str):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        ) 

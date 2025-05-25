@@ -54,4 +54,10 @@ class DatabaseError(HTTPException):
         detail: str = "Database operation failed",
         headers: Optional[Dict[str, Any]] = None
     ):
-        super().__init__(status_code=status_code, detail=detail, headers=headers) 
+        super().__init__(status_code=status_code, detail=detail, headers=headers)
+
+class UsecaseNotFoundError(Exception):
+    def __init__(self, usecase_id: str):
+        self.usecase_id = usecase_id
+        self.detail = f"Usecase with id {usecase_id} not found"
+        super().__init__(self.detail) 

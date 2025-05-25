@@ -18,4 +18,12 @@ class Golden(BaseModel):
     output: str
     metadata: Optional[dict] = None
     created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+
+class Usecase(BaseModel):
+    id: str = str(uuid.uuid4())
+    model_id: str
+    onboarded_to: str
+    authentication: dict
+    created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now() 
