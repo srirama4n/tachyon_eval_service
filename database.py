@@ -1,6 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List, Optional
-from models import Dataset, Golden, Usecase
+from models import Dataset, Golden
 from datetime import datetime
 import os
 from dotenv import load_dotenv
@@ -232,4 +232,3 @@ class Database:
             raise
         except Exception as e:
             raise DatabaseError(detail=f"Failed to import goldens: {str(e)}")
-
